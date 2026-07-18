@@ -1,6 +1,7 @@
 package com.onat.jurist.lawyer.service;
 
 import com.onat.jurist.lawyer.entity.*;
+import com.onat.jurist.lawyer.repository.AdminNotificationRepository;
 import com.onat.jurist.lawyer.repository.AffaireRepository;
 import com.onat.jurist.lawyer.repository.AvocatRepository;
 import com.onat.jurist.lawyer.repository.EmailNotificationRepository;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -18,6 +20,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AcceptanceServiceTest {
+
+    @Mock
+    private SimpMessagingTemplate messagingTemplate;
 
     @Mock
     private AffaireRepository affaireRepo;
@@ -30,6 +35,9 @@ class AcceptanceServiceTest {
 
     @Mock
     private AffaireAssignmentService assignmentService;
+
+    @Mock
+    private AdminNotificationRepository adminNotificationRepo;
 
     @InjectMocks
     private AcceptanceService service;
@@ -58,10 +66,11 @@ class AcceptanceServiceTest {
 
         EmailNotification notif = new EmailNotification();
         notif.setAffaire(af);
+        notif.setAvocat(av);
 
         when(affaireRepo.findById(10L)).thenReturn(Optional.of(af));
         when(avocatRepo.findById(1L)).thenReturn(Optional.of(av));
-        when(emailRepo.findAll()).thenReturn(java.util.List.of(notif));
+        when(emailRepo.findByAffaireAndAvocat(af, av)).thenReturn(Optional.of(notif));
 
         service.acceptAffaire(10L, 1L);
 
@@ -69,6 +78,8 @@ class AcceptanceServiceTest {
         assertThat(av.getAffairesEnCours()).isEqualTo(1);
         assertThat(av.getAffairesAcceptees()).isEqualTo(1);
         assertThat(notif.isAccepted()).isTrue();
+
+        verify(adminNotificationRepo).save(any(AdminNotification.class));
     }
 
 
@@ -85,10 +96,11 @@ class AcceptanceServiceTest {
 
         EmailNotification notif = new EmailNotification();
         notif.setAffaire(af);
+        notif.setAvocat(av);
 
         when(affaireRepo.findById(11L)).thenReturn(Optional.of(af));
         when(avocatRepo.findById(1L)).thenReturn(Optional.of(av));
-        when(emailRepo.findAll()).thenReturn(java.util.List.of(notif));
+        when(emailRepo.findByAffaireAndAvocat(af, av)).thenReturn(Optional.of(notif));
 
         service.refuseAffaire(11L, 1L);
 
@@ -96,6 +108,7 @@ class AcceptanceServiceTest {
         assertThat(af.getAvocatAssigne()).isNull();
         assertThat(notif.isAccepted()).isFalse();
 
+        verify(adminNotificationRepo).save(any(AdminNotification.class));
         verify(assignmentService).assignBestLawyer(af);
     }
 
