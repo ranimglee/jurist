@@ -1,0 +1,366 @@
+package com.onat.jurist.lawyer.service;
+
+import com.ibm.icu.text.ArabicShaping;
+import com.ibm.icu.text.Bidi;
+import com.lowagie.text.*;
+import com.lowagie.text.pdf.*;
+import com.onat.jurist.lawyer.dto.in.AvocatRequest;
+import com.onat.jurist.lawyer.dto.out.AvocatResponse;
+
+import com.onat.jurist.lawyer.dto.out.LawyerResponseRateDTO;
+import com.onat.jurist.lawyer.dto.out.LawyerWorkloadDTO;
+import com.onat.jurist.lawyer.entity.Avocat;
+import com.onat.jurist.lawyer.exception.ExportException;
+import com.onat.jurist.lawyer.repository.AvocatRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Service;
+
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AvocatService {
+
+    private final AvocatRepository avocatRepository;
+
+
+    public AvocatResponse createAvocat(AvocatRequest request) {
+        Avocat avocat = Avocat.builder()
+                .prenom(request.getPrenom())
+                .identifiant(request.getIdentifiant())
+                .nom(request.getNom())
+                .email(request.getEmail())
+                .telephone(request.getTelephone())
+                .region(request.getRegion())
+                .adresse(request.getAdresse())
+                .dateInscription(request.getDateInscription())
+                .accepteAideJudiciaire(false)
+
+
+
+                .build();
+
+        Avocat saved = avocatRepository.save(avocat);
+        return mapToResponse(saved);
+    }
+
+
+    public List<AvocatResponse> getAllAvocats() {
+        return avocatRepository.findAll()
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+
+    public Optional<AvocatResponse> getAvocatById(Long id) {
+        return avocatRepository.findById(id).map(this::mapToResponse);
+    }
+
+
+    public AvocatResponse updateAvocat(Long id, AvocatRequest updatedAvocat) {
+        Avocat avocat = avocatRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Avocat non trouvé avec l'id: " + id));
+
+        avocat.setPrenom(updatedAvocat.getPrenom());
+        avocat.setIdentifiant(updatedAvocat.getIdentifiant());
+        avocat.setNom(updatedAvocat.getNom());
+        avocat.setEmail(updatedAvocat.getEmail());
+        avocat.setTelephone(updatedAvocat.getTelephone());
+        avocat.setRegion(updatedAvocat.getRegion());
+        avocat.setAdresse(updatedAvocat.getAdresse());
+
+        Avocat updated = avocatRepository.save(avocat);
+        return mapToResponse(updated);
+    }
+
+
+    public void deleteAvocat(Long id) {
+        avocatRepository.deleteById(id);
+    }
+
+
+    private AvocatResponse mapToResponse(Avocat avocat) {
+        return AvocatResponse.builder()
+                .id(avocat.getId())
+                .prenom(avocat.getPrenom())
+                .identifiant(avocat.getIdentifiant())
+                .nom(avocat.getNom())
+                .email(avocat.getEmail())
+                .telephone(avocat.getTelephone())
+                .region(avocat.getRegion())
+                .adresse(avocat.getAdresse())
+                .dateInscription(avocat.getDateInscription())
+                .affairesAcceptees(avocat.getAffairesAcceptees())
+                .affairesRefusees(avocat.getAffairesRefusees())
+                .affairesEnCours(avocat.getAffairesEnCours())
+                .lastAssignedAt(avocat.getLastAssignedAt())
+                .build();
+    }
+
+    public byte[] exportAvocatsToExcel() {
+        List<Avocat> avocats = avocatRepository.findAll();
+
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("قائمة المحامين");
+
+            // Header
+            Row header = sheet.createRow(0);
+            String[] columns = {
+                    " عدد الترسيم",        // Identifiant
+                    "الاسم",   // Prénom
+                    "اللقب",         // Nom
+                    "البريد الإلكتروني", // Email
+                    "الهاتف",       // Téléphone
+                    "المنطقة",      // Région
+                    "العنوان",      // Adresse
+                    "تاريخ التسجيل" // Date Inscription
+            };
+
+            for (int i = 0; i < columns.length; i++) {
+                Cell cell = header.createCell(i);
+                cell.setCellValue(columns[i]);
+            }
+
+            // Data
+            int rowNum = 1;
+            for (Avocat avocat : avocats) {
+                Row row = sheet.createRow(rowNum++);
+                row.createCell(0).setCellValue(avocat.getIdentifiant());
+                row.createCell(1).setCellValue(avocat.getPrenom());
+                row.createCell(2).setCellValue(avocat.getNom());
+                row.createCell(3).setCellValue(avocat.getEmail());
+                row.createCell(4).setCellValue(avocat.getTelephone());
+                row.createCell(5).setCellValue(avocat.getRegion());
+                row.createCell(6).setCellValue(avocat.getAdresse());
+                row.createCell(7).setCellValue(
+                        avocat.getDateInscription() != null ? avocat.getDateInscription().toString() : ""
+                );
+            }
+
+            // Auto size columns
+            for (int i = 0; i < columns.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+
+        } catch (Exception e) {
+            throw new ExportException("Erreur lors de l'export Excel", e);
+        }
+    }
+
+    public byte[] exportAvocatsToPdfWithArabic() {
+        List<Avocat> avocats = avocatRepository.findAll();
+
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Document document = new Document(PageSize.A4, 40, 40, 80, 60);
+
+            PdfWriter writer = PdfWriter.getInstance(document, out);
+
+            // Footer
+            writer.setPageEvent(new PdfPageEventHelper() {
+                @Override
+                public void onEndPage(PdfWriter writer, Document document) {
+                    Phrase footer = new Phrase("Page " + writer.getPageNumber());
+                    ColumnText.showTextAligned(
+                            writer.getDirectContent(),
+                            Element.ALIGN_CENTER,
+                            footer,
+                            (document.right() - document.left()) / 2 + document.leftMargin(),
+                            document.bottom() - 20,
+                            0
+                    );
+                }
+            });
+
+            document.open();
+
+            // ------------------- LOAD ARABIC FONT ---------------------
+            BaseFont bf = BaseFont.createFont(
+                    "src/main/resources/fonts/NotoNaskhArabic-Regular.ttf", // path to your font
+                    BaseFont.IDENTITY_H,
+                    BaseFont.EMBEDDED
+            );
+            Font arabicFont = new Font(bf, 10);
+            Font arabicFontBold = new Font(bf, 12, Font.BOLD);
+            Font arabicTitleFont = new Font(bf, 18, Font.BOLD);
+
+            // ------------------- LOGO ---------------------
+            Image logo = loadLogo();
+            PdfPTable headerTable = new PdfPTable(2);
+            headerTable.setWidthPercentage(100);
+            headerTable.setWidths(new int[]{4, 1}); // swap column widths if needed
+
+// Title cell first (on the left)
+            Paragraph titleText = new Paragraph(fixArabic("الهيئة الوطنية للمحامين بتونس فرع نابل"), arabicTitleFont);
+            titleText.setAlignment(Element.ALIGN_CENTER);
+            PdfPCell titleCell = new PdfPCell(titleText);
+            titleCell.setBorder(Rectangle.NO_BORDER);
+            titleCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            titleCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+// Logo cell second (on the right)
+            PdfPCell logoCell = (logo != null) ? new PdfPCell(logo) : new PdfPCell();
+            logoCell.setBorder(Rectangle.NO_BORDER);
+            logoCell.setHorizontalAlignment(Element.ALIGN_RIGHT); // align to right
+            logoCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+            headerTable.addCell(titleCell);
+            headerTable.addCell(logoCell);
+
+            document.add(headerTable);
+
+            // ------------------- SUBSUBTITLE ---------------------
+            Paragraph subtitle = new Paragraph(
+                    fixArabic("قائمة المحامين - تم إنشاء الملف تلقائيًا بتاريخ" + LocalDate.now()),
+                    arabicFontBold
+            );
+            subtitle.setAlignment(Element.ALIGN_CENTER);
+            subtitle.setSpacingAfter(15);
+            document.add(subtitle);
+
+            // ------------------- TABLE ---------------------
+            PdfPTable table = new PdfPTable(8);
+            table.setWidthPercentage(100);
+            table.setSpacingBefore(10);
+            table.setWidths(new float[]{25f, 25f, 25f,20f, 30f, 25f, 30f, 25f});
+            table.setRunDirection(PdfWriter.RUN_DIRECTION_RTL); // RTL support
+
+            // Table headers in Arabic
+            String[] headers = {
+                    " عدد الترسيم",        // Identifiant
+                    "الاسم",   // Prénom
+                    "اللقب",         // Nom
+                    "البريد الإلكتروني", // Email
+                    "الهاتف",       // Téléphone
+                    "العنوان",
+                    "المنطقة",        // Région
+                    "تاريخ التسجيل" // Date Inscription
+            };
+            for (String h : headers) {
+                PdfPCell cell = new PdfPCell(new Phrase(h, arabicFontBold));
+                cell.setBackgroundColor(new java.awt.Color(230, 230, 230));
+                cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+                cell.setPadding(5);
+                table.addCell(cell);
+            }
+
+            // Table data
+            for (Avocat avocat : avocats) {
+
+                table.addCell(new PdfPCell(new Phrase(avocat.getIdentifiant(), arabicFont)));
+                table.addCell(new PdfPCell(new Phrase(avocat.getPrenom(), arabicFont)));
+                table.addCell(new PdfPCell(new Phrase(avocat.getNom(), arabicFont)));
+                table.addCell(new PdfPCell(new Phrase(avocat.getEmail(), arabicFont)));
+                table.addCell(new PdfPCell(new Phrase(avocat.getTelephone(), arabicFont)));
+                table.addCell(new PdfPCell(new Phrase(avocat.getAdresse(), arabicFont)));
+                table.addCell(new PdfPCell(new Phrase(avocat.getRegion(), arabicFont)));
+                table.addCell(new PdfPCell(new Phrase(
+                        avocat.getDateInscription() != null ? avocat.getDateInscription().toString() : "",
+                        arabicFont
+                )));
+            }
+
+            document.add(table);
+            document.close();
+
+            return out.toByteArray();
+
+        } catch (Exception e) {
+            throw new ExportException("Erreur lors de la génération du PDF avec arabe", e);
+        }
+    }
+    private Image loadLogo() {
+        try {
+            ClassPathResource imgFile = new ClassPathResource("images/logo-onan.jpg");
+            byte[] imageBytes;
+
+            try (InputStream is = imgFile.getInputStream()) {
+                imageBytes = is.readAllBytes();
+            }
+
+            Image logo = Image.getInstance(imageBytes);
+            logo.scaleAbsolute(100, 80);
+            return logo;
+
+        } catch (Exception e) {
+            log.warn("⚠️ Logo introuvable : {}", e.getMessage());
+            return null;
+        }
+    }
+    public long countLawyers() {
+        return avocatRepository.count();
+    }
+
+    public long countActiveLawyers() {
+        return avocatRepository.countByAffairesIsNotEmpty();
+    }
+
+    public List<LawyerWorkloadDTO> getLawyerWorkload() {
+        return avocatRepository.findAll()
+                .stream()
+                .map(a -> new LawyerWorkloadDTO(a.getId(), a.getNom(), a.getAffaires().size(), a.getAffairesAcceptees(), a.getAffairesRefusees()))
+                .toList();
+    }
+
+    public List<LawyerResponseRateDTO> getLawyerResponseRates() {
+        return avocatRepository.findAll()
+                .stream()
+                .map(a -> {
+                    int total = a.getAffairesAcceptees() + a.getAffairesRefusees();
+                    double rate = total > 0 ? ((double) a.getAffairesAcceptees() / total) * 100 : 0;
+                    return new LawyerResponseRateDTO(a.getId(), a.getNom(), rate);
+                })
+                .toList();
+    }
+
+    public Map<String, Long> countLawyersByRegion() {
+        return avocatRepository.findAll()
+                .stream()
+                .collect(Collectors.groupingBy(Avocat::getRegion, Collectors.counting()));
+    }
+
+    public Map<Integer, Long> countLawyersPerYear() {
+        return avocatRepository.findAll()
+                .stream()
+                .collect(Collectors.groupingBy(
+                        a -> a.getDateInscription().getYear(),
+                        Collectors.counting()
+                ));
+    }
+
+    public String fixArabic(String text) {
+        try {
+            // Step 1: shape Arabic letters
+            ArabicShaping shaping = new ArabicShaping(ArabicShaping.LETTERS_SHAPE |
+                    ArabicShaping.TEXT_DIRECTION_LOGICAL);
+            String shaped = shaping.shape(text);
+
+            // Step 2: apply right-to-left reordering
+            Bidi bidi = new Bidi(shaped, Bidi.DIRECTION_RIGHT_TO_LEFT);
+            return bidi.writeReordered(Bidi.DO_MIRRORING);
+        } catch (Exception e) {
+            return text; // fallback if something goes wrong
+        }
+    }
+}

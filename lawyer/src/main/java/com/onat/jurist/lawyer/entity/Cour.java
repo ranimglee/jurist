@@ -1,0 +1,9 @@
+package com.onat.jurist.lawyer.entity;
+
+public enum Cour {
+    TRIBUNAL_PREMIERE_INSTANCE_GROMBALIA,
+    TRIBUNAL_PREMIERE_INSTANCE_NABEUL,
+    COUR_APPEL_NABEUL,
+    TRIBUNAL_NAHAIYA_GROMBALIA,
+
+}

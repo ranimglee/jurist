@@ -1,0 +1,38 @@
+package com.onat.jurist.lawyer.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.LocalDate;
+
+@Entity
+@Table(name = "aides_judiciaires")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class AideJudiciaire {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String numeroDossier;
+
+    @Enumerated(EnumType.STRING)
+    private Cour cour;
+
+    @Enumerated(EnumType.STRING)
+    private Circuit circuit;
+
+    private String nomDemandeur; // اسم الطالب
+
+    private LocalDate dateDecision;
+
+    private LocalDate dateAudience;
+
+    @ManyToOne
+    @JoinColumn(name = "avocat_id")
+    private Avocat avocatAssigne;
+}

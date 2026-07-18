@@ -1,0 +1,64 @@
+services:
+  mysql:
+    image: mysql:8
+    container_name: jurist-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-juristdb}
+      MYSQL_USER: ${MYSQL_USER:-jurist}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-jurist_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - jurist_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  backend:
+    build:
+      context: ./lawyer
+      dockerfile: Dockerfile
+    container_name: jurist-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-juristdb}?createDatabaseIfNotExist=true&useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-jurist}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-jurist_password}
+      JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret-to-a-long-random-value}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      APP_ADMIN_EMAIL: ${APP_ADMIN_EMAIL:-admin@system.com}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-admin123}
+      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-http://localhost:3000}
+      APP_COOKIE_SECURE: ${APP_COOKIE_SECURE:-false}
+      APP_COOKIE_SAME_SITE: ${APP_COOKIE_SAME_SITE:-Lax}
+    ports:
+       - "8080:8080"
+
+
+  frontend:
+    build:
+      context: ./juris-assist-ui
+      dockerfile: Dockerfile
+    container_name: jurist-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: http://backend:8080
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+
+volumes:
+  jurist_mysql_data:
+

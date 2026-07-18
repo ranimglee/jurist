@@ -1,0 +1,112 @@
+package com.onat.jurist.lawyer.controller;
+
+import com.onat.jurist.lawyer.dto.in.AideJudiciaireRequestDTO;
+
+import com.onat.jurist.lawyer.dto.out.AideJudiciaireResponseDTO;
+import com.onat.jurist.lawyer.service.AideJudiciaireService;
+import com.onat.jurist.lawyer.service.AuthService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/aides-judiciaires")
+@RequiredArgsConstructor
+public class AideJudiciaireController {
+
+    private final AideJudiciaireService service;
+    private final AuthService authService;
+
+    private boolean isAuthenticated(String token) {
+        if (token == null || token.isEmpty()) {
+            return false;
+        }
+        try {
+            authService.getUserFromToken(token);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @PostMapping
+    public ResponseEntity<AideJudiciaireResponseDTO> create(
+            @CookieValue(name = "token", required = false) String token,
+            @Valid @RequestBody AideJudiciaireRequestDTO dto
+    ) {
+        if (!isAuthenticated(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(dto));
+    }
+
+    @GetMapping
+    public ResponseEntity<List<AideJudiciaireResponseDTO>> getAll(
+            @CookieValue(name = "token", required = false) String token
+    ) {
+        if (!isAuthenticated(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(service.getAll());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<AideJudiciaireResponseDTO> getById(
+            @CookieValue(name = "token", required = false) String token,
+            @PathVariable Long id
+    ) {
+        if (!isAuthenticated(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(service.getById(id));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<AideJudiciaireResponseDTO> update(
+            @CookieValue(name = "token", required = false) String token,
+            @PathVariable Long id,
+            @Valid @RequestBody AideJudiciaireRequestDTO dto
+    ) {
+        if (!isAuthenticated(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(service.update(id, dto));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(
+            @CookieValue(name = "token", required = false) String token,
+            @PathVariable Long id
+    ) {
+        if (!isAuthenticated(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        service.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/reassign")
+    public ResponseEntity<AideJudiciaireResponseDTO> assign(
+            @CookieValue(name = "token", required = false) String token,
+            @PathVariable Long id,
+            @RequestParam(required = false) Long avocatId
+    ) {
+        if (!isAuthenticated(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(service.assignLawyer(id, avocatId));
+    }
+    
+    @GetMapping("/eligible-lawyers")
+    public ResponseEntity<?> getEligibleLawyers(@CookieValue(name = "token", required = false) String token) {
+        if (!isAuthenticated(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Non authentifié");
+        }
+        return ResponseEntity.ok(service.getEligibleLawyersSortedByPriority());
+    }
+}

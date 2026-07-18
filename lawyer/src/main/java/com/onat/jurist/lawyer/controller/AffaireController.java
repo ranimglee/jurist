@@ -1,0 +1,56 @@
+package com.onat.jurist.lawyer.controller;
+
+import com.onat.jurist.lawyer.dto.in.AffaireRequestDTO;
+import com.onat.jurist.lawyer.dto.out.AffaireResponseDTO;
+
+import com.onat.jurist.lawyer.service.AffaireService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/affaires")
+@RequiredArgsConstructor
+public class AffaireController {
+
+    private final AffaireService affaireService;
+
+    @PostMapping
+    public ResponseEntity<AffaireResponseDTO> createAffaire(@Valid @RequestBody AffaireRequestDTO dto) {
+        return new ResponseEntity<>(affaireService.createAffaire(dto), HttpStatus.CREATED);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<AffaireResponseDTO>> getAllAffaires() {
+        return ResponseEntity.ok(affaireService.getAllAffaires());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<AffaireResponseDTO> getAffaire(@PathVariable Long id) {
+        return ResponseEntity.ok(affaireService.getAffaireById(id));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<AffaireResponseDTO> updateAffaire(@PathVariable Long id,
+                                                            @Valid @RequestBody AffaireRequestDTO dto) {
+        return ResponseEntity.ok(affaireService.updateAffaire(id, dto));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteAffaire(@PathVariable Long id) {
+        affaireService.deleteAffaire(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/avocat/{avocatId}")
+    public ResponseEntity<List<AffaireResponseDTO>> getAffairesByAvocat(@PathVariable Long avocatId) {
+        return ResponseEntity.ok(affaireService.getAffairesByAvocat(avocatId));
+
+    }
+
+}

@@ -1,0 +1,18 @@
+# Secrets
+.env
+*.env
+
+# Frontend
+juris-assist-ui/node_modules/
+juris-assist-ui/dist/
+
+# Backend
+lawyer/target/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+Thumbs.db
+.DS_Store
