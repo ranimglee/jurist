@@ -121,6 +121,33 @@ docker compose logs mysql
 - `backend`: Spring Boot 3.4 API on internal port `8080`.
 - `frontend`: nginx serving the Vite production build on `localhost:3000`.
 
+## Continuous Integration
+
+GitHub Actions is used to validate the frontend and backend independently on pushes to `main` and pull requests targeting `main`.
+
+The backend pipeline runs from `lawyer/` and performs:
+
+- Java 21 setup with Eclipse Temurin.
+- Maven dependency caching.
+- Backend tests with `./mvnw test`.
+- Spring Boot package build with `./mvnw clean package -DskipTests`.
+- Backend Docker image build with `docker build -t jurist-backend .`.
+
+The frontend pipeline runs from `juris-assist-ui/` and performs:
+
+- Node.js 20 setup with npm caching.
+- Dependency installation with `npm ci`.
+- Linting with `npm run lint`.
+- React production build with `npm run build`.
+- Frontend Docker image build with `docker build -t jurist-frontend .`.
+
+Configure these GitHub repository secrets before relying on the backend pipeline:
+
+- `JWT_SECRET`
+- `MYSQL_PASSWORD`
+- `MAIL_USERNAME`
+- `MAIL_PASSWORD`
+
 ## Useful Commands
 
 Open a shell in the backend container:
@@ -146,4 +173,3 @@ docker compose ps
 - Do not use `localhost` between containers. Compose services communicate through service names: `mysql`, `backend`, and `frontend`.
 - Keep `VITE_API_BASE_URL` empty for the default Docker setup. Browser requests go to the same frontend origin and nginx proxies `/api`, `/auth`, and `/ws` to the backend.
 - Set `APP_COOKIE_SECURE=true` only when serving the app over HTTPS.
-

@@ -1,0 +1,74 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  backend:
+    name: Test, Build, and Dockerize Backend
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_DATABASE: juristdb
+          MYSQL_USER: jurist
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -p$MYSQL_ROOT_PASSWORD --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    defaults:
+      run:
+        working-directory: lawyer
+
+    env:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/juristdb?createDatabaseIfNotExist=true&useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: jurist
+      SPRING_DATASOURCE_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+      MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+      APP_ADMIN_EMAIL: admin@system.com
+      APP_ADMIN_PASSWORD: ci-only-admin-password
+      APP_PUBLIC_BASE_URL: http://localhost:8080
+      APP_COOKIE_SECURE: false
+      APP_COOKIE_SAME_SITE: Lax
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Java 21 matches the backend pom.xml and Dockerfile runtime.
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      # GitHub Linux runners need the Maven wrapper to be executable.
+      - name: Ensure Maven wrapper is executable
+        run: chmod +x ./mvnw
+
+      - name: Run backend tests
+        run: ./mvnw test
+
+      - name: Build Spring Boot application
+        run: ./mvnw clean package -DskipTests
+
+      # Validates the production backend Dockerfile from lawyer/Dockerfile.
+      - name: Build backend Docker image
+        run: docker build -t jurist-backend .

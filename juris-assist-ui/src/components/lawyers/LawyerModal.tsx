@@ -68,7 +68,7 @@ export function LawyerModal({ isOpen, onClose, onSave, lawyer }: LawyerModalProp
         }
         break;
       case "telephone":
-        if (!/^[\d\s\-\+\(\)]+$/.test(value) || value.length < 8) {
+        if (!/^[\d\s+()-]+$/.test(value) || value.length < 8) {
           return t("lawyers.modal.error.phone");
         }
         break;
